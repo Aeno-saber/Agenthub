@@ -1,0 +1,27 @@
+{
+  "name": "agent-hub",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AgentHub —— 多 agent 协同工作台（第一期：编排逻辑验证）",
+  "main": "electron/main.js",
+  "scripts": {
+    "probe": "node tests/probe.mjs",
+    "smoke:claude": "node tests/smoke-claude.mjs",
+    "smoke:adapter": "node tests/smoke-adapter.mjs",
+    "smoke:member": "node tests/smoke-member.mjs",
+    "smoke:ui": "node tests/ui-smoke.mjs",
+    "smoke:electron": "node tests/electron-smoke.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "ui": "node ui/server.js --workdir .",
+    "hub": "node cli.js",
+    "app": "electron .",
+    "package": "node tools/package-app.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "electron": "^43.4.0"
+  }
+}

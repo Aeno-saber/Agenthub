@@ -1,0 +1,8 @@
+{
+  "id": "plan-1790732581701",
+  "goal": "主脑拆分路径冒烟：把目标交给 WorkBuddy",
+  "workdir": "D:\\app\\AgentHub",
+  "createdAt": "2026-09-30T01:43:01.701Z",
+  "status": "pending",
+  "note": "待主脑拆解。WorkBuddy 据此拆解后可调用 agenthub_run_plan 执行；引擎自己不会拆。"
+}

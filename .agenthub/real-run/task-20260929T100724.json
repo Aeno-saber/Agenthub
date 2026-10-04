@@ -1,0 +1,32 @@
+{
+  "phase": "plan",
+  "goal": "读 src/engine/quality.js 和 tests/quality.test.mjs，找出当前「产出有效性判定」的缺口：哪些「假成功」「环境错误」「推诿文案」现在还识别不出来。给出具体缺口清单。",
+  "planner": "claude",
+  "planMs": 36343,
+  "plan": [
+    {
+      "id": "s1",
+      "memberId": "claude",
+      "role": "代码调研",
+      "prompt": "只读仓库、不改任何源文件，产出一份「现状能力 + 漏判边界」事实清单。\n\n【要读的文件】\n1) src/engine/quality.js（109 行）\n2) tests/quality.test.mjs（93 行）\n3) 消费方：src/engine/orchestrator.js 第 174-175 行、src/engine/trace.js 第 40-85 行、ui/public/app.js 第 519-533 行\n\n【必须逐条写清】\nA. 当前能识别的三类：\n   - empty（第 74 行）：只覆盖 t 为空/纯空白，`text` 非字符串时如何处理？写清第 73 行的行为。\n   - REFUSAL_PATTERNS（第 27-38 行，10 条正则）：逐条抄出正则 + 行号 + 它实际能命中的措辞样例；明确指出哪些措辞变体它命不中（例如「请问您想让我做什么」「需要更明确的需求」「I need more context」「Could you clarify」这类。\n   - ENV_ERROR_PATTERNS（第 41-51 行，9 条正则）：同上逐条列出 + 列出明显没覆盖的错误族（usage/rate limit、quota、context window exceeded、上下文超限、connection refused / ECONNREFUSED / 502 proxy、MCP server not connected、tool not permitted、timeout、401/403 只写了 401）。\nB. 判定边界（这几行是漏判主因，务必单独成节，写清「因为第 X 行，所以 Y 类漏判」）：\n   - 第 71 行：meta.status !== 'ok' 直接返回 ok —— 也就是说 status 非 ok 的产出完全不做内容判定。\n   - 第 76-78 行：刻意不按长度判 —— 导致空话型假成功（「好的，我这就开始」「已完成」「Sure, I'll do that」）没有任何规则覆盖。\n   - 第 80 行 REFUSAL_MAX_CHARS=800 与第 91 行 SHORT_TEXT_CHARS=400 —— 明确写出：超过 800 字符的推诿文案、超过 400 字符的环境错误一律漏判。\nC. 消费路径：orchestrator 只把 judgeOutput 结果当提示（quality 字段），trace.js 统计 suspectCount、ui 只渲染警告 —— 结论必须写明「judgeOutput 目前没有任何「假成功」专用 code」，codes 只有 empty / template-refusal / env-error 三个。\n\n【产出】写到 .agenthub/quality-gaps/01-current-capability.md。结构：① 判定函数签名与返回值 ② 三个 codes 的覆盖矩阵（表格：措辞族 → 是否命中 → 命中的正则/行号）③ 边界与漏判推导（每条都带行号）④ 消费路径。禁止修改 src/** 与 tests/** 下任何文件。"
+    },
+    {
+      "id": "s2",
+      "memberId": "cursor",
+      "role": "测试",
+      "prompt": "不改任何源文件，用 node 直接调用真实判定函数做实证。\n\n【调用方式】在仓库根目录用 node 跑一个临时脚本（放在 .agenthub/quality-gaps/probe.mjs，不要放进 tests/），import { judgeOutput } from '../../src/engine/quality.js'，对每条样本执行 judgeOutput(s, { status: 'ok' }) 并打印 level 与 codes。\n\n【语料要求】三类各不少于 10 条，务必覆盖下面这些：\n1) 假成功（退出码 0 但产出是元话术）：\n   - 「好的，我这就开始处理」「已完成」「收到，正在执行」「Sure, I'll do that」\n   - 只回显了 prompt 原文\n   - 只输出未解包的 CLI JSON 包裹：{\"type\":\"result\",\"result\":\"...\"} 或 {\"subtype\":\"success\",\"is_error\":false}\n   - 只有 ANSI 转义/光标控制字符、或只有 '...' / 'TODO' / '无' / '-' 的产出\n   - 只有错误堆栈：Error: xxx\\n    at ... （注意 status 仍是 ok）\n   - 反问式收尾：「Do you want me to continue?」「需要我继续吗？」\n2) 环境错误：usage limit reached / rate limit exceeded / quota exceeded / 额度已用尽 / context window exceeded / 上下文长度超限 / request timed out / MCP server not connected / tool not permitted / 沙箱拒绝执行 / invalid_request_error / 403 Forbidden / connection refused / ECONNREFUSED / proxy 502 / npm ERR! / Killed（OOM）\n3) 推诿文案（现有正则的中英文盲区）：「请问您具体想让我做什么？」「需要更明确的需求」「你还没告诉我要做什么」「请把需求发给我」「I need more context」「Could you clarify what you'd like me to do」「Your message appears to be empty」\n\n【必做的阈值实验】把同一条推诿文案重复到 801 字符以上、把同一条环境错误重复到 401 字符以上，各再测一次，验证第 80 / 91 行的阈值确实是漏判来源。\n\n【产出】写到 .agenthub/quality-gaps/02-corpus.md，一张表：样本（转义显示，长样本截断）| 类别 | 期望 | 实测 level | 实测 codes | 是否漏判(是/否) ；表格后另附「疑似误报风险」小节：逐条标注该措辞在长技术文档中是否也可能自然出现（会的话会影响修复方案）。结论要写清每类的漏判条数占比。"
+    },
+    {
+      "id": "s3",
+      "memberId": "qoder",
+      "role": "评审",
+      "prompt": "先读 .agenthub/quality-gaps/01-current-capability.md 与 .agenthub/quality-gaps/02-corpus.md，然后自己动手复核，不要照抄。\n\n【核验动作】对 01 中每一条「声称的缺口」，去 02 的实测表里找对应样本；找不到样本的，自己在 .agenthub/quality-gaps/probe.mjs 里补测（同样 import ../../src/engine/quality.js 的 judgeOutput）。凡是实测已被现有正则/阈值捕获的，一律判为伪缺口并删除。\n\n【产出】写到 .agenthub/quality-gaps/03-verified-gaps.md，一张结论表：缺口ID | 类别(假成功/环境错误/推诿文案/判定机制) | 最小复现样本 | 实测 verdict | 漏判原因(指向 quality.js 行号) | 命中概率(高/中/低) | 危害(高/中/低) | 修复方式(加正则/改阈值/新增 code) | 该修复的误报风险。\n\n【额外必须给出的判断】\n- REFUSAL_MAX_CHARS=800 这类阈值该怎么改：是抬阈值，还是改用结构信号（例如「无代码块 + 无数字结论 + 含第二人称提问」才判 suspect）？给出具体建议值与理由。\n- 是否应新增一个 code（如 fake-success / no-artifact），以及第 71 行「status !== 'ok' 直接 return ok」是否要放开二次判定。\n- 最后给出按「命中概率 × 危害」排序的 Top 3 必补缺口。\n不要修改 src/ 与 tests/ 下任何文件。"
+    },
+    {
+      "id": "s4",
+      "memberId": "claude",
+      "role": "文档书写",
+      "prompt": "读 .agenthub/quality-gaps/03-verified-gaps.md（必要时回看 01、02），写最终交付文档 .agenthub/quality-gaps/FINAL.md。\n\n【结构要求】\n1) 开头 3-8 行结论摘要：现在最该补的 3 条缺口，一句话说清「什么产出会被误判成成功」。\n2) 明确写出当前判定的三个 code 只有 empty / template-refusal / env-error，没有「假成功」专用 code。\n3) 按四个小节展开：假成功 / 环境错误 / 推诿文案 / 判定机制（阈值与 status 早退）。每条缺口统一格式：缺口ID、最小复现样本、现状（带 quality.js 行号）、建议修法、误报风险、优先级。\n4) 附一张「优先级汇总表」和一段「不建议纳入的措辞及原因」（把误报风险高、s3 已剔除的写在这里）。\n语言用中文，可直接拿去 review 或作为后续改 quality.js 的输入。不要修改任何源文件，只写这一个 md。"
+    }
+  ]
+}

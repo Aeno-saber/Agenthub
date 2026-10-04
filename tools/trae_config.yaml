@@ -1,0 +1,69 @@
+# Trae Agent 配置 —— AgentHub 成员接入专用
+#
+# 由 members.json 里 trae.env.TRAE_CONFIG_FILE 指到这里。
+#
+# ⚠️ 不要把 API Key 写进本文件。
+#    trae-agent 的取值优先级是 CLI > ENV > config（见 utils/config.py 的
+#    resolve_config_value），所以密钥放环境变量就够了，本文件保持零凭据、
+#    可以安全提交进仓库。
+#    环境变量名 = <provider 名转大写>_API_KEY，例如：
+#      doubao    -> DOUBAO_API_KEY
+#      openai    -> OPENAI_API_KEY
+#      anthropic -> ANTHROPIC_API_KEY
+#
+# ⚠️ 因为下面 provider 写的是 doubao，trae **只会去读 DOUBAO_API_KEY**。
+#    实测设成 ARK_API_KEY 是不认的 —— 它会直接抛一段 Python 异常（堆栈里看不出是 key 的问题），
+#    非常容易误判成装坏了。
+#    建议统一用 DOUBAO_API_KEY：AgentHub 的豆包成员也认这个名字，一个变量同时管两个成员。
+#
+# 注意：YAML 只允许空格缩进，不能用 Tab。
+
+agents:
+    trae_agent:
+        # 关掉 lakeview（每步生成摘要）：它会额外发 LLM 请求，慢且费钱。
+        # AgentHub 派下来的是短子任务，不需要每步摘要。
+        enable_lakeview: false
+        model: trae_agent_model
+        # 官方默认 200 步。子任务应该几步内收敛，给个上限防止跑飞烧钱。
+        max_steps: 60
+        tools:
+            - bash
+            - str_replace_based_edit_tool
+            - sequentialthinking
+            - task_done
+            # 刻意不启用 ckg（代码知识图谱）：它依赖 tree-sitter-languages，
+            # 而那个包只有 cp312 的 wheel —— 这也正是 Trae 必须跑在
+            # Python 3.12 而不能是 3.13 的原因（见 docs/05-成员接入.md）。
+
+model_providers:
+    # ── 方案 A（当前启用）：豆包 ──
+    # 与 AgentHub 的 doubao 成员共用同一个 ARK_API_KEY，一处申请两处可用。
+    doubao:
+        api_key: "" # 留空：运行时从 DOUBAO_API_KEY 环境变量取
+        provider: doubao
+        base_url: https://ark.cn-beijing.volces.com/api/v3/
+
+    # ── 方案 B：任意 OpenAI 兼容端点（DeepSeek / OpenRouter / 本地 ollama…）──
+    # 要换用它：把下面几行取消注释，并把 models.trae_agent_model.model_provider
+    # 改成 openai_compat。
+    # openai_compat:
+    #     api_key: ""                 # 从 OPENAI_API_KEY 环境变量取
+    #     provider: openai
+    #     base_url: https://api.deepseek.com/v1
+
+models:
+    trae_agent_model:
+        model_provider: doubao
+        # 改成你在方舟控制台「开通管理」里已开通的 Model ID
+        model: doubao-seed-evolving
+        max_tokens: 4096
+        temperature: 0.5
+        top_p: 1
+        top_k: 0
+        max_retries: 3
+        parallel_tool_calls: true
+
+# lakeview 小节即使关掉也要留一个合法引用，否则配置校验会报模型不存在。
+# 直接复用主模型，不额外定义一个付费模型。
+lakeview:
+    model: trae_agent_model

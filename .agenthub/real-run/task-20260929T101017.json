@@ -1,0 +1,91 @@
+{
+  "phase": "plan",
+  "goal": "读 src/engine/quality.js 和 tests/quality.test.mjs，找出当前「产出有效性判定」的缺口：哪些「假成功」「环境错误」「推诿文案」现在还识别不出来。给出具体缺口清单。",
+  "planner": "claude",
+  "planMs": 26106,
+  "plan": [
+    {
+      "id": "s1",
+      "memberId": "claude",
+      "role": "代码主笔",
+      "prompt": "在仓库 D:\\app\\AgentHub 中，先完整阅读 src/engine/quality.js（重点：REFUSAL_PATTERNS、ENV_ERROR_PATTERNS、SHORT_TEXT_CHARS=400、REFUSAL_MAX_CHARS=800、judgeOutput 的判定顺序与短路逻辑）和 tests/quality.test.mjs 的现有样本。\n\n任务：输出一份「产出有效性判定缺口清单 v1」，必须按下面三类分组，每条缺口都写清四要素：\n【缺什么】具体是哪类产出（给 2-3 条真实感的中英文样例文本，尽量短）\n【为什么现在判不出来】指到具体代码位置，例如「REFUSAL_PATTERNS 第 3 条要求 16 字内出现 目标|内容|需求 等词，'请补充一下细节' 不命中」\n【当前会被判成什么】明确写出 judgeOutput 会返回 ok 还是某个 code\n【建议怎么补】给出可落地的写法（具体正则 / 关键词 / 新 code 名 / 是否受 400、800 字符阈值限制），并说明是否会引入误报\n\n三类至少要覆盖到：\n1) 假成功：退出码 0 但产出无信息量或答非所问。例如「好的，我马上开始」「已完成！」这类只有承诺没有结果的回复；反问用户「你希望我用哪种方式实现？」；只回显输入 prompt 或只罗列文件名/步骤计划而没有结论；把工具调用 JSON / diff 头当成答案输出。\n2) 环境错误：现在 ENV_ERROR_PATTERNS 只有一批英文词，且只在 <=400 字符时才采信。请专门检查这些漏网项——中文环境错误（未登录/请先登录/无权访问/未授权/网络连接失败/命令不可用/速率限制）、配额与限流（429、quota exceeded、insufficient credits、rate limit）、网络与超时（ETIMEDOUT、ECONNREFUSED、DNS 解析失败）、沙箱与权限（approval required、tool denied/sandbox violation、EACCES）、以及「错误文本本身超过 400 字符」（例如带一大段 CLI 横幅的报错）被阈值直接放过的情形。\n3) 推诿文案：除了「让我补充信息」，还要看能力型/道歉型推诿是否完全未覆盖——「抱歉，我无法完成」「作为一个 AI 我不能」「我没有权限执行」「I cannot / I'm unable to / As an AI language model」；以及中文变体「缺少具体任务」「请提供更多上下文」「没看到你的指令」「你似乎没有说明要做什么」是否命中现有正则；另外说明 REFUSAL_MAX_CHARS=800 意味着「长篇幅的推诿 + 一大堆客套话」会被放过，这是不是一个真实缺口。\n\n额外必查两项：judgeOutput 只看 text，完全没看 stderr / 退出码之外的运行时错误（如 Traceback、fatal:、Error:），以及 status 非 ok 时直接 return ok 是否漏掉了「failed 但产出其实可用」的误杀/漏判。\n\n产出方式：把清单写入文件 work/quality-gap-report.md（目录不存在就创建），同时在回复里贴出完整清单正文（Markdown，中文，条目编号 G1、G2…，每类末尾给出「本类最该先补的 3 条」并说明理由）。不要修改 src/engine/quality.js 和 tests/quality.test.mjs，本步骤只做审计，不改代码。"
+    },
+    {
+      "id": "s2",
+      "memberId": "cursor",
+      "role": "调研取证",
+      "prompt": "在仓库 D:\\app\\AgentHub 中做证据采集，目标是拿到「真实发生过的、当前 quality.js 判不出来」的产出样本，用于校验缺口清单是否有现实依据。\n\n要做的：\n1) 找到成员产出的落盘位置：查看 .agenthub/runs/ 下的 *.json（已知至少有 mcp-1790668720650.json 与 mcp-1790668805804.json），用 shell（node 或 grep）把所有 run 记录里的成员产出文本、status、成员名抽取出来，统计每条产出的字符长度。\n2) 用 node 直接调用 src/engine/quality.js 导出的 judgeOutput，对全部抽取出的产出跑一遍，列出「判为 ok」的产出原文（截断展示，最多 200 字符）与对应 status / 成员 / run 文件，重点标出那些看起来其实没干成事的（承诺型、反问型、只回显 prompt、纯客套、报错残留）。\n3) 在 src/ 全仓搜索 judgeOutput / describeQuality 的调用点，说明判定结果在哪个流程里被消费、有没有地方把 suspect 当成失败处理，或把 ok 直接当成功计数。\n4) 把结果写入 work/quality-evidence.md：一张样本表（run 文件 / 成员 / status / 长度 / 当前判定 / 人工判断是否假成功 / 一句话理由），加一节「调用链」，再加一节「本次没找到的那类样本」（诚实记录哪些缺口类型在本仓库历史记录里无实例，只能靠构造反例验证）。\n5) 回复里给出结论摘要：本次取证到几条「当前判 ok 但实际是假成功/环境错误/推诿」的真实样本，逐条列出。\n\n注意：只读，不要改动 .agenthub/ 下任何文件，也不要修改源码与测试。找不到 runs 目录或文件为空时，如实说明并改用「构造反例」路线，把构造的反例文本一并写入证据文件。"
+    },
+    {
+      "id": "s3",
+      "memberId": "trae",
+      "role": "测试",
+      "prompt": "在仓库 D:\\app\\AgentHub 中，为目标「找出 quality.js 判定缺口」提供可复现的漏判证据。依赖 s1 产出的 work/quality-gap-report.md（先读它，取里面的缺口条目作为用例来源）。\n\n要做的：\n1) 新建测试文件 tests/quality.gap.test.mjs（不要改动 tests/quality.test.mjs），结构沿用现有测试的 t(name, fn) 写法，import judgeOutput from '../src/engine/quality.js'。\n2) 为 s1 清单里的每一条缺口写一条「当前行为断言」用例：断言 judgeOutput(sample, { status: 'ok' }).level === 'ok' 且 codes 为空，用来证明「这类产出现在确实识别不出来」。用例名要写成缺口编号 + 期望补上后的目标 code，例如 'G7 [应补 fake-commitment] 当前被判 ok'。\n3) 同时补一批防误报用例：长文档里正常引用这些新词（例如技术文档里讨论 429 限流、讨论「我无法完成」的失败案例）必须仍判 ok，确保后续补规则时不会误伤。\n4) 用 node tests/quality.gap.test.mjs 跑通，把输出贴出来；要求大部分断言通过（证明漏判存在），若有断言失败说明该缺口其实已被覆盖，要在回复中明确指出并回填到报告里。\n5) 把「缺口编号 → 用例名 → 是否证实漏判」的对照表追加写入 work/quality-gap-verify.md，并在回复里给出结论：s1 清单中哪些缺口被证实、哪些被证伪。"
+    },
+    {
+      "id": "s4",
+      "memberId": "qoder",
+      "role": "评审",
+      "prompt": "在仓库 D:\\app\\AgentHub 中做交叉评审并交付最终结论。输入：s1 的 work/quality-gap-report.md、s2 的 work/quality-evidence.md、s3 的 work/quality-gap-verify.md 与 tests/quality.gap.test.mjs（都先读），并回到 src/engine/quality.js 与 tests/quality.test.mjs 核对每一处引用的行号与正则是否属实。\n\n要做的：\n1) 逐条核验 s1 清单：标为「保留 / 修正 / 删除」，修正或删除必须写出原因（引用原文行号）。特别检查与文件头「宁漏勿误」原则冲突的条目——比如靠长度阈值判假成功、靠关键词判「未完成任务」这类高误报规则，应明确指出不该加或必须收缩条件。\n2) 用 s2 的真实样本与 s3 的断言结果给每条缺口标证据等级：已证实（有真实样本或有通过的漏判断言）/ 仅有构造反例 / 无证据。\n3) 按「该先补」排序（考虑误报风险、改动成本、是否只需要改正则 vs 需要新增 code 和阈值分级），给出前 5 条，并给每条写出建议的 code 名与一行修改方案（可指向具体常量/函数名，不要真的改源码）。\n4) 在回复中直接输出最终交付物：一份中文 Markdown「产出有效性判定缺口清单（终版）」，含三张表（假成功 / 环境错误 / 推诿文案），列：编号、缺口描述、样例、当前判定、建议 code、证据等级、优先级；表后附「明确不该补的候选」一节（说明为何会误报）。同一内容写入 work/quality-gap-final.md。\n5) 不要修改 src/engine/quality.js、tests/quality.test.mjs 与 s3 新建的测试文件；本步骤只评审与汇总。"
+    }
+  ],
+  "planDiag": {
+    "ok": true,
+    "repaired": false,
+    "repairReason": "",
+    "rawLength": 4713,
+    "subtaskCount": 4,
+    "plannerStatus": "ok",
+    "roster": [
+      "claude",
+      "cursor",
+      "qoder",
+      "trae"
+    ],
+    "durationMs": 25970,
+    "at": "2026-09-29T10:10:43.829Z"
+  },
+  "planDraft": {
+    "goal": "读 src/engine/quality.js 和 tests/quality.test.mjs，找出当前「产出有效性判定」的缺口：哪些「假成功」「环境错误」「推诿文案」现在还识别不出来。给出具体缺口清单。",
+    "subtasks": [
+      {
+        "id": "s1",
+        "title": "对 quality.js 判定规则做缺口审计",
+        "memberId": "claude",
+        "role": "代码主笔",
+        "prompt": "在仓库 D:\\app\\AgentHub 中，先完整阅读 src/engine/quality.js（重点：REFUSAL_PATTERNS、ENV_ERROR_PATTERNS、SHORT_TEXT_CHARS=400、REFUSAL_MAX_CHARS=800、judgeOutput 的判定顺序与短路逻辑）和 tests/quality.test.mjs 的现有样本。\n\n任务：输出一份「产出有效性判定缺口清单 v1」，必须按下面三类分组，每条缺口都写清四要素：\n【缺什么】具体是哪类产出（给 2-3 条真实感的中英文样例文本，尽量短）\n【为什么现在判不出来】指到具体代码位置，例如「REFUSAL_PATTERNS 第 3 条要求 16 字内出现 目标|内容|需求 等词，'请补充一下细节' 不命中」\n【当前会被判成什么】明确写出 judgeOutput 会返回 ok 还是某个 code\n【建议怎么补】给出可落地的写法（具体正则 / 关键词 / 新 code 名 / 是否受 400、800 字符阈值限制），并说明是否会引入误报\n\n三类至少要覆盖到：\n1) 假成功：退出码 0 但产出无信息量或答非所问。例如「好的，我马上开始」「已完成！」这类只有承诺没有结果的回复；反问用户「你希望我用哪种方式实现？」；只回显输入 prompt 或只罗列文件名/步骤计划而没有结论；把工具调用 JSON / diff 头当成答案输出。\n2) 环境错误：现在 ENV_ERROR_PATTERNS 只有一批英文词，且只在 <=400 字符时才采信。请专门检查这些漏网项——中文环境错误（未登录/请先登录/无权访问/未授权/网络连接失败/命令不可用/速率限制）、配额与限流（429、quota exceeded、insufficient credits、rate limit）、网络与超时（ETIMEDOUT、ECONNREFUSED、DNS 解析失败）、沙箱与权限（approval required、tool denied/sandbox violation、EACCES）、以及「错误文本本身超过 400 字符」（例如带一大段 CLI 横幅的报错）被阈值直接放过的情形。\n3) 推诿文案：除了「让我补充信息」，还要看能力型/道歉型推诿是否完全未覆盖——「抱歉，我无法完成」「作为一个 AI 我不能」「我没有权限执行」「I cannot / I'm unable to / As an AI language model」；以及中文变体「缺少具体任务」「请提供更多上下文」「没看到你的指令」「你似乎没有说明要做什么」是否命中现有正则；另外说明 REFUSAL_MAX_CHARS=800 意味着「长篇幅的推诿 + 一大堆客套话」会被放过，这是不是一个真实缺口。\n\n额外必查两项：judgeOutput 只看 text，完全没看 stderr / 退出码之外的运行时错误（如 Traceback、fatal:、Error:），以及 status 非 ok 时直接 return ok 是否漏掉了「failed 但产出其实可用」的误杀/漏判。\n\n产出方式：把清单写入文件 work/quality-gap-report.md（目录不存在就创建），同时在回复里贴出完整清单正文（Markdown，中文，条目编号 G1、G2…，每类末尾给出「本类最该先补的 3 条」并说明理由）。不要修改 src/engine/quality.js 和 tests/quality.test.mjs，本步骤只做审计，不改代码。",
+        "dependsOn": []
+      },
+      {
+        "id": "s2",
+        "title": "从真实运行记录中取证漏判样本",
+        "memberId": "cursor",
+        "role": "调研取证",
+        "prompt": "在仓库 D:\\app\\AgentHub 中做证据采集，目标是拿到「真实发生过的、当前 quality.js 判不出来」的产出样本，用于校验缺口清单是否有现实依据。\n\n要做的：\n1) 找到成员产出的落盘位置：查看 .agenthub/runs/ 下的 *.json（已知至少有 mcp-1790668720650.json 与 mcp-1790668805804.json），用 shell（node 或 grep）把所有 run 记录里的成员产出文本、status、成员名抽取出来，统计每条产出的字符长度。\n2) 用 node 直接调用 src/engine/quality.js 导出的 judgeOutput，对全部抽取出的产出跑一遍，列出「判为 ok」的产出原文（截断展示，最多 200 字符）与对应 status / 成员 / run 文件，重点标出那些看起来其实没干成事的（承诺型、反问型、只回显 prompt、纯客套、报错残留）。\n3) 在 src/ 全仓搜索 judgeOutput / describeQuality 的调用点，说明判定结果在哪个流程里被消费、有没有地方把 suspect 当成失败处理，或把 ok 直接当成功计数。\n4) 把结果写入 work/quality-evidence.md：一张样本表（run 文件 / 成员 / status / 长度 / 当前判定 / 人工判断是否假成功 / 一句话理由），加一节「调用链」，再加一节「本次没找到的那类样本」（诚实记录哪些缺口类型在本仓库历史记录里无实例，只能靠构造反例验证）。\n5) 回复里给出结论摘要：本次取证到几条「当前判 ok 但实际是假成功/环境错误/推诿」的真实样本，逐条列出。\n\n注意：只读，不要改动 .agenthub/ 下任何文件，也不要修改源码与测试。找不到 runs 目录或文件为空时，如实说明并改用「构造反例」路线，把构造的反例文本一并写入证据文件。",
+        "dependsOn": []
+      },
+      {
+        "id": "s3",
+        "title": "构造反例并用现有测试验证漏判",
+        "memberId": "trae",
+        "role": "测试",
+        "prompt": "在仓库 D:\\app\\AgentHub 中，为目标「找出 quality.js 判定缺口」提供可复现的漏判证据。依赖 s1 产出的 work/quality-gap-report.md（先读它，取里面的缺口条目作为用例来源）。\n\n要做的：\n1) 新建测试文件 tests/quality.gap.test.mjs（不要改动 tests/quality.test.mjs），结构沿用现有测试的 t(name, fn) 写法，import judgeOutput from '../src/engine/quality.js'。\n2) 为 s1 清单里的每一条缺口写一条「当前行为断言」用例：断言 judgeOutput(sample, { status: 'ok' }).level === 'ok' 且 codes 为空，用来证明「这类产出现在确实识别不出来」。用例名要写成缺口编号 + 期望补上后的目标 code，例如 'G7 [应补 fake-commitment] 当前被判 ok'。\n3) 同时补一批防误报用例：长文档里正常引用这些新词（例如技术文档里讨论 429 限流、讨论「我无法完成」的失败案例）必须仍判 ok，确保后续补规则时不会误伤。\n4) 用 node tests/quality.gap.test.mjs 跑通，把输出贴出来；要求大部分断言通过（证明漏判存在），若有断言失败说明该缺口其实已被覆盖，要在回复中明确指出并回填到报告里。\n5) 把「缺口编号 → 用例名 → 是否证实漏判」的对照表追加写入 work/quality-gap-verify.md，并在回复里给出结论：s1 清单中哪些缺口被证实、哪些被证伪。",
+        "dependsOn": [
+          "s1"
+        ]
+      },
+      {
+        "id": "s4",
+        "title": "评审并汇总最终缺口清单",
+        "memberId": "qoder",
+        "role": "评审",
+        "prompt": "在仓库 D:\\app\\AgentHub 中做交叉评审并交付最终结论。输入：s1 的 work/quality-gap-report.md、s2 的 work/quality-evidence.md、s3 的 work/quality-gap-verify.md 与 tests/quality.gap.test.mjs（都先读），并回到 src/engine/quality.js 与 tests/quality.test.mjs 核对每一处引用的行号与正则是否属实。\n\n要做的：\n1) 逐条核验 s1 清单：标为「保留 / 修正 / 删除」，修正或删除必须写出原因（引用原文行号）。特别检查与文件头「宁漏勿误」原则冲突的条目——比如靠长度阈值判假成功、靠关键词判「未完成任务」这类高误报规则，应明确指出不该加或必须收缩条件。\n2) 用 s2 的真实样本与 s3 的断言结果给每条缺口标证据等级：已证实（有真实样本或有通过的漏判断言）/ 仅有构造反例 / 无证据。\n3) 按「该先补」排序（考虑误报风险、改动成本、是否只需要改正则 vs 需要新增 code 和阈值分级），给出前 5 条，并给每条写出建议的 code 名与一行修改方案（可指向具体常量/函数名，不要真的改源码）。\n4) 在回复中直接输出最终交付物：一份中文 Markdown「产出有效性判定缺口清单（终版）」，含三张表（假成功 / 环境错误 / 推诿文案），列：编号、缺口描述、样例、当前判定、建议 code、证据等级、优先级；表后附「明确不该补的候选」一节（说明为何会误报）。同一内容写入 work/quality-gap-final.md。\n5) 不要修改 src/engine/quality.js、tests/quality.test.mjs 与 s3 新建的测试文件；本步骤只评审与汇总。",
+        "dependsOn": [
+          "s1",
+          "s2",
+          "s3"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "phase": "run",
+  "goal": "读 src/engine/quality.js 和 tests/quality.test.mjs，找出当前「产出有效性判定」的缺口：哪些「假成功」「环境错误」「推诿文案」现在还识别不出来。给出具体缺口清单。",
+  "planner": "claude",
+  "planMs": 35830,
+  "permission": "execute",
+  "status": "failed",
+  "summary": null,
+  "cards": [],
+  "logs": [
+    {
+      "t": "18:30:45",
+      "text": "已连接执行通道"
+    },
+    {
+      "t": "18:30:45",
+      "text": "✖ 服务端错误：计划校验失败"
+    },
+    {
+      "t": "18:30:45",
+      "text": "  子任务 s3 缺少 prompt"
+    }
+  ],
+  "markdown": ""
+}

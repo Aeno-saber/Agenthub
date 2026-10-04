@@ -1,0 +1,5 @@
+{"type":"thread.started","thread_id":"01a0fae2-f249-7090-91e6-8b7f995cbd35"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Model metadata for `definitely-not-a-real-model` not found. Defaulting to fallback metadata; this can degrade performance and cause issues."}}
+{"type":"turn.started"}
+{"type":"error","message":"{\"error\":{\"message\":\"The supported API model names are deepseek-flash, deepseek-v4-pro, but you passed definitely-not-a-real-model. (request_id: bec734f2-f3b6-4983-acbb-1881f43c0274)\",\"type\":\"invalid_request_error\",\"code\":\"invalid_request_error\"}}"}
+{"type":"turn.failed","error":{"message":"{\"error\":{\"message\":\"The supported API model names are deepseek-flash, deepseek-v4-pro, but you passed definitely-not-a-real-model. (request_id: bec734f2-f3b6-4983-acbb-1881f43c0274)\",\"type\":\"invalid_request_error\",\"code\":\"invalid_request_error\"}}"}}

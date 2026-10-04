@@ -1,0 +1,32 @@
+{
+  "goal": "给 AgentHub 引擎的剩下两个模块补单元测试（--bare 成本对比实验）",
+  "subtasks": [
+    {
+      "id": "s1",
+      "title": "planner.js 单元测试",
+      "memberId": "claude",
+      "role": "测试",
+      "permission": "execute",
+      "prompt": "阅读 src/engine/planner.js，为其中的 extractJson 函数写单元测试，保存到 tests/planner.test.mjs。使用 node:test 和 node:assert。要覆盖这些输入：标准 ```json 围栏代码块、裸 JSON 字符串、前后夹着解释文字的 JSON、完全非法的文本、空字符串、null。写完后运行 node --test tests/planner.test.mjs，并报告真实的 pass 和 fail 数量（不要推测，必须是实际运行的输出）。",
+      "dependsOn": []
+    },
+    {
+      "id": "s2",
+      "title": "orchestrator.js 单元测试",
+      "memberId": "claude",
+      "role": "测试",
+      "permission": "execute",
+      "prompt": "阅读 src/engine/orchestrator.js，为其中的 buildPrompt 函数写单元测试，保存到 tests/orchestrator.test.mjs。使用 node:test 和 node:assert。要覆盖：无依赖子任务的基础拼装、带上游产出时的上下文注入、上游产出超长时被截断、多个上游依赖按顺序拼接。构造测试用的 ctx 对象时参考 buildPrompt 里用到的字段。写完后运行 node --test tests/orchestrator.test.mjs，并报告真实的 pass 和 fail 数量（不要推测，必须是实际运行的输出）。",
+      "dependsOn": []
+    },
+    {
+      "id": "s3",
+      "title": "测试覆盖说明",
+      "memberId": "claude",
+      "role": "文档书写",
+      "permission": "readonly",
+      "prompt": "基于上游两份单元测试的产出，写一段覆盖说明（250 字以内）：分别覆盖了哪个模块的哪个函数、重点验证了什么、测试总数是多少、怎么运行。直接输出 Markdown 文本，不要写文件。",
+      "dependsOn": ["s1", "s2"]
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "phase": "plan",
+  "goal": "读 src/engine/quality.js 和 tests/quality.test.mjs，找出当前「产出有效性判定」的缺口：哪些「假成功」「环境错误」「推诿文案」现在还识别不出来。给出具体缺口清单。",
+  "planner": "claude",
+  "planMs": 31744,
+  "plan": [
+    {
+      "id": "s1",
+      "memberId": "claude",
+      "role": "代码调研",
+      "prompt": "精读 src/engine/quality.js 与 tests/quality.test.mjs，做规则盘点：列出每条 REFUSAL / ENV 正则、两个长度阈值（800 / 400）、判定分支与返回码，并逐条标注它「识别得了 / 识别不了」的失败形态。交付 markdown 登记表，只陈述现状，不提改法。"
+    },
+    {
+      "id": "s2",
+      "memberId": "cursor",
+      "role": "调研",
+      "prompt": "扫描 .agenthub/runs/*.json 中 status=ok 的成员产出，找出会被 judgeOutput 判为 ok、但实际无效的样本：假成功话术、超 400 字的环境错误转储、超 800 字的推诿。可写脚本批量筛。交付反例清单：原文片段 + 字符数 + 为何算无效。"
+    },
+    {
+      "id": "s3",
+      "memberId": "qoder",
+      "role": "测试",
+      "prompt": "跑 node tests/quality.test.mjs 确认基线通过，再盘点用例覆盖缺口：哪些失败形态（假成功、长文本环境错误、超长推诿）没有对应用例。交付缺口列表，每条含 形态 + 未覆盖原因 + 建议用例输入，不要改源码。"
+    },
+    {
+      "id": "s4",
+      "memberId": "claude",
+      "role": "文档书写",
+      "prompt": "汇总 s1 / s2 / s3 的交付，产出最终《产出有效性判定缺口清单》，写入 docs/quality-gaps.md。每条含：缺口描述、真实证据、误报风险、优先级、建议新增规则。结论必须能回溯到证据，不得凭空补缺。"
+    }
+  ],
+  "planDiag": {
+    "ok": true,
+    "repaired": false,
+    "repairReason": "",
+    "rawLength": 1281,
+    "subtaskCount": 4,
+    "plannerStatus": "ok",
+    "roster": [
+      "claude",
+      "cursor",
+      "qoder"
+    ],
+    "durationMs": 31664,
+    "at": "2026-09-29T10:45:56.003Z"
+  },
+  "planDraft": {
+    "goal": "读 src/engine/quality.js 和 tests/quality.test.mjs，找出当前「产出有效性判定」的缺口：哪些「假成功」「环境错误」「推诿文案」现在还识别不出来。给出具体缺口清单。",
+    "subtasks": [
+      {
+        "id": "s1",
+        "title": "现有判定规则盘点",
+        "memberId": "claude",
+        "role": "代码调研",
+        "prompt": "精读 src/engine/quality.js 与 tests/quality.test.mjs，做规则盘点：列出每条 REFUSAL / ENV 正则、两个长度阈值（800 / 400）、判定分支与返回码，并逐条标注它「识别得了 / 识别不了」的失败形态。交付 markdown 登记表，只陈述现状，不提改法。",
+        "dependsOn": []
+      },
+      {
+        "id": "s2",
+        "title": "真实反例采集",
+        "memberId": "cursor",
+        "role": "调研",
+        "prompt": "扫描 .agenthub/runs/*.json 中 status=ok 的成员产出，找出会被 judgeOutput 判为 ok、但实际无效的样本：假成功话术、超 400 字的环境错误转储、超 800 字的推诿。可写脚本批量筛。交付反例清单：原文片段 + 字符数 + 为何算无效。",
+        "dependsOn": []
+      },
+      {
+        "id": "s3",
+        "title": "测试覆盖缺口盘点",
+        "memberId": "qoder",
+        "role": "测试",
+        "prompt": "跑 node tests/quality.test.mjs 确认基线通过，再盘点用例覆盖缺口：哪些失败形态（假成功、长文本环境错误、超长推诿）没有对应用例。交付缺口列表，每条含 形态 + 未覆盖原因 + 建议用例输入，不要改源码。",
+        "dependsOn": []
+      },
+      {
+        "id": "s4",
+        "title": "汇总缺口清单",
+        "memberId": "claude",
+        "role": "文档书写",
+        "prompt": "汇总 s1 / s2 / s3 的交付，产出最终《产出有效性判定缺口清单》，写入 docs/quality-gaps.md。每条含：缺口描述、真实证据、误报风险、优先级、建议新增规则。结论必须能回溯到证据，不得凭空补缺。",
+        "dependsOn": [
+          "s1",
+          "s2",
+          "s3"
+        ]
+      }
+    ]
+  }
+}

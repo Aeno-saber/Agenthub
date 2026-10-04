@@ -1,0 +1,14 @@
+{
+  "goal": "验证执行档能否放行命令执行（修复权限粒度的回归测试）",
+  "subtasks": [
+    {
+      "id": "v1",
+      "title": "跑测试并回报",
+      "memberId": "claude",
+      "role": "测试",
+      "permission": "execute",
+      "prompt": "运行以下两条命令，然后把真实结果报告给我，不要修改任何文件：\n1) node --test tests/plan.test.mjs\n2) node --test tests/trace.test.mjs\n\n报告每次运行的 pass 和 fail 数量。如果命令被权限拦截无法执行，请明确说明「无法执行」而不是推测结果。",
+      "dependsOn": []
+    }
+  ]
+}

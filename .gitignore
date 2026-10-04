@@ -1,0 +1,26 @@
+# 密钥 —— 千万不要提交
+.env
+*.env
+!.env.example
+
+# 运行产物
+trajectories/
+.agenthub/runs/
+.agenthub/shots/
+src/config/backup/
+backup/
+
+# 依赖与构建
+node_modules/
+dist/
+build/
+tools/*-venv*/
+tools/trae-agent/
+tools/cursor-agent/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+*.log

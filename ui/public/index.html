@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentHub</title>
+<!-- 内联 SVG 图标：不额外落一个文件，也不会有 favicon 404 -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231f1e1c'/><text x='16' y='23' font-size='19' font-family='sans-serif' font-weight='700' text-anchor='middle' fill='%23ef9f27'>A</text></svg>">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- ── 顶栏 ──
+     三段：① 品牌（图标就是打包进 exe 的那一份）② 面包屑「现在在哪儿」
+     ③ 右侧控件组。原来是平铺一排，看久了不知道自己在哪一屏。 -->
+<header class="topbar">
+  <span class="brand">
+    <img class="brand-icon" src="agenthub.ico" alt="">
+    <span class="brand-text">AgentHub</span>
+  </span>
+  <span class="tb-sep"></span>
+
+  <!-- 面包屑：内容由 renderTopbar() 填（选择页 / 会话名 / 协同任务名） -->
+  <span class="crumb" id="crumb"></span>
+  <button class="project" id="projectBtn" title="切换工作目录">
+    <span id="projectName">…</span>
+  </button>
+
+  <span class="grow"></span>
+
+  <span class="tb-group">
+    <button class="pill" id="permBtn" title="权限档位：点击切换（只读 / 计划 / 执行）">
+      <span class="pill-dot"></span><span id="permLabel">计划</span>
+    </button>
+    <button class="pill ghost" id="membersBtn" title="成员管理">成员 <span id="memberCount">0/0</span></button>
+    <button class="icon-btn" id="editorToggle" title="编辑器区开关">▤</button>
+  </span>
+</header>
+
+<div class="layout" id="layout">
+  <!-- ── 左栏 ── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-full" id="sidebarFull">
+      <div class="new-row">
+        <button class="btn primary" id="newChatBtn">新建会话</button>
+        <button class="btn" id="newTaskBtn">新建协同</button>
+      </div>
+      <div class="group">
+        <div class="group-title" id="chatGroupTitle">独立会话</div>
+        <div id="chatList" class="list"></div>
+      </div>
+      <div class="group">
+        <div class="group-title" id="taskGroupTitle">协同任务</div>
+        <div id="taskList" class="list"></div>
+      </div>
+      <!-- 回选择页：进了会话之后换人 / 换任务都从这里走。
+           放底部是因为它是「离开」动作，不该跟「新建」抢同一块注意力。 -->
+      <div class="side-foot">
+        <!-- 删除确认开关：**默认 hidden**（见 renderSidebar）。
+             它只在用户关掉「删除前先确认」之后才露面，作用是让那个偏好可逆 ——
+             没有它，「下次直接删除」就是一张单程票。 -->
+        <button class="side-foot-btn ask-switch" id="askSwitch" data-act="ask-on" hidden
+          title="删除单条会话/任务时是否先弹确认框">删除不再确认 · 点这里恢复</button>
+        <button class="side-foot-btn" id="homeBtn" title="回到选择页（换成员 / 换任务）">
+          <span>⌂</span> 回到选择页
+        </button>
+      </div>
+    </div>
+    <!-- 收起态：图标条。⌂ 同样压到底部，与展开态的位置一致（肌肉记忆不该换地方） -->
+    <div class="sidebar-mini" id="sidebarMini">
+      <button class="icon-btn" id="expandSidebar" title="展开左栏">☰</button>
+      <button class="icon-btn" id="miniNewChat" title="新建会话">＋</button>
+      <button class="icon-btn" id="miniNewTask" title="新建协同">⚙</button>
+      <button class="icon-btn" id="miniHome" title="回到选择页（换成员 / 换任务）">⌂</button>
+    </div>
+  </aside>
+
+  <!-- ── 主区 ── -->
+  <main class="main" id="main"></main>
+
+  <!-- ── 编辑器区 ── -->
+  <div class="resizer" id="resizer" title="拖拽调整宽度"></div>
+  <aside class="editor" id="editorPane">
+    <div class="editor-head">
+      <span class="editor-title" id="editorTitle">编辑器</span>
+      <span class="unsaved-dot" id="unsavedDot" hidden></span>
+      <span class="grow"></span>
+      <button class="mini-btn" id="closeEditor" title="收起编辑器">收起</button>
+    </div>
+    <div class="editor-body">
+      <div class="filetree" id="fileTree"></div>
+      <textarea class="fileview" id="fileView" spellcheck="false"
+        placeholder="← 选一个文件查看 / 编辑（Ctrl+S 保存）"></textarea>
+    </div>
+  </aside>
+</div>
+
+<div class="modal-root" id="modalRoot"></div>
+<div class="toast-root" id="toastRoot"></div>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>

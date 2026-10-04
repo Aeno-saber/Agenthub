@@ -1,0 +1,248 @@
+{
+  "_comment": "AgentHub 成员配置。可用性一律以实测为准（跑 npm run smoke:adapter），不看这里的 enabled 字段。",
+  "_permissionLevels": [
+    "readonly 只读",
+    "plan 计划",
+    "execute 执行",
+    "full 全自动"
+  ],
+  "orchestrator": {
+    "id": "workbuddy",
+    "name": "WorkBuddy",
+    "note": "主脑。没有 CLI，第二期通过 MCP 反向接入（由它来调用本引擎）"
+  },
+  "members": [
+    {
+      "id": "claude",
+      "name": "Claude",
+      "adapter": "claude",
+      "billing": "subscription",
+      "enabled": true,
+      "command": "C:\\Users\\deno\\bin\\claude.cmd",
+      "baseArgs": [
+        "--bare"
+      ],
+      "defaultPermission": "plan",
+      "timeoutMs": 600000,
+      "capabilities": [
+        "code",
+        "shell",
+        "doc",
+        "review"
+      ],
+      "permissionArgs": {
+        "readonly": [
+          "--permission-mode",
+          "dontAsk"
+        ],
+        "plan": [
+          "--permission-mode",
+          "plan"
+        ],
+        "execute": [
+          "--permission-mode",
+          "acceptEdits",
+          "--allowedTools",
+          "Bash",
+          "Read",
+          "Write",
+          "Edit",
+          "Glob",
+          "Grep"
+        ],
+        "full": [
+          "--permission-mode",
+          "bypassPermissions"
+        ]
+      },
+      "notes": "实测可用 2.1.278。prompt 走 stdin 最快。注意：acceptEdits 只放行文件修改、不放行执行命令 —— 所以 execute 档额外挂了 --allowedTools，否则 agent 改完文件没法跑测试。【模型来源，2026-09-29 实测查清】本机 claude 被 CC Switch 指向第三方：ANTHROPIC_BASE_URL=api.deepseek.com/anthropic，settings.json 的 env.ANTHROPIC_MODEL=deepseek-flash。--bare 会跳过 settings 的 model 字段（所以不是 haiku→deepseek-v4-pro），实际跑的就是 deepseek-flash。【stderr 的 unrecognized_model 是噪音】claude CLI 只认官方 Claude 模型名，见到第三方名就打一条 [claude-code:unrecognized_model]，但请求照常转发给 ANTHROPIC_BASE_URL。实测直接 curl 该端点，deepseek-flash 与 deepseek-v4-pro 均返回 HTTP 200，功能与成本均正常。【隐式耦合提醒】模型由 settings.json 决定，CC Switch 一换供应商/模型，AgentHub 里 claude 的行为会跟着变。【2026-09-29 决策：不固定模型】用户已确认刻意保持不固定 —— 目的是跟随 CC Switch 的全局设置，换供应商时 AgentHub 自动跟着换，不必维护两份配置。因此 orchestrator 不传 model **是有意为之，不是遗漏**。若将来要改成固定，改动点是：members.json 加 model 字段 → orchestrator.runOne 透传 opts.model → ClaudeAdapter.buildArgs 已支持（`if (opts.model) args.push('--model', opts.model)`），适配器无需改。注意 --bare 会跳过 settings.json 的 model 字段，所以实际跟随的是 env.ANTHROPIC_MODEL 这一层。"
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor",
+      "adapter": "generic",
+      "billing": "subscription",
+      "enabled": true,
+      "command": "D:\\app\\AgentHub\\tools\\cursor-agent\\dist-package\\cursor-agent.cmd",
+      "promptMode": "stdin",
+      "argsTemplate": [
+        "--trust",
+        "-p"
+      ],
+      "probeArgs": [
+        "--version"
+      ],
+      "defaultPermission": "plan",
+      "timeoutMs": 600000,
+      "outputFormat": "text",
+      "workdirFlag": "--workspace",
+      "modelFlag": "--model",
+      "capabilities": [
+        "code",
+        "shell"
+      ],
+      "permissionArgs": {
+        "readonly": [
+          "--mode",
+          "ask"
+        ],
+        "plan": [
+          "--mode",
+          "plan"
+        ],
+        "execute": [
+          "--force"
+        ],
+        "full": [
+          "--force",
+          "--sandbox",
+          "disabled"
+        ]
+      },
+      "authHint": "需要 CURSOR_API_KEY 环境变量，或先跑 cursor-agent login 走浏览器登录",
+      "notes": "已装 CLI 2026.09.28-64d2043，已浏览器登录（1696167834@qq.com）。官方 zip 解压到项目 tools/ 下 —— 刻意没走官方安装脚本（它会改系统 PATH），位置可控。⚠️ argsTemplate 里的 --trust 是必需的：Cursor 有 Workspace Trust 机制，不加会直接拒绝执行并返回 'Workspace Trust Required'（generic adapter 不支持 baseArgs，只能放 argsTemplate）。permissionArgs 里的 --mode/--force 是执行档位，与 --trust 正交。支持 -w/--worktree 做 git worktree 隔离。"
+    },
+    {
+      "id": "qoder",
+      "name": "Qoder",
+      "adapter": "generic",
+      "enabled": true,
+      "command": "C:\\Users\\deno\\.npm-global\\qodercli.cmd",
+      "promptMode": "stdin",
+      "argsTemplate": [
+        "-p"
+      ],
+      "probeArgs": [
+        "--version"
+      ],
+      "defaultPermission": "plan",
+      "timeoutMs": 600000,
+      "outputFormat": "json",
+      "textPath": "result",
+      "costPath": "total_cost_usd",
+      "creditsPath": "total_credits",
+      "workdirFlag": "-w",
+      "modelFlag": "-m",
+      "billing": "credits",
+      "capabilities": [
+        "code",
+        "shell",
+        "review"
+      ],
+      "permissionArgs": {
+        "readonly": [
+          "--permission-mode",
+          "dont_ask"
+        ],
+        "plan": [
+          "--permission-mode",
+          "default"
+        ],
+        "execute": [
+          "--permission-mode",
+          "accept_edits"
+        ],
+        "full": [
+          "--permission-mode",
+          "bypass_permissions"
+        ]
+      },
+      "authHint": "需要交互登录（跑 qodercli 后输入 /login），或设 QODER_PERSONAL_ACCESS_TOKEN",
+      "notes": "已装 CLI 1.1.64（npm 全局 → C:\\Users\\deno\\.npm-global）。参数与 claude 高度一致，也支持 --worktree 做并行隔离。已修正：qodercli 根本没有 --output-format 参数（旧配置写错了，实测 --help 确认）。"
+    },
+    {
+      "id": "trae",
+      "name": "Trae",
+      "adapter": "generic",
+      "billing": "tokens",
+      "enabled": true,
+      "requiredEnv": [
+        "DOUBAO_API_KEY"
+      ],
+      "command": "D:\\app\\AgentHub\\tools\\trae-venv312\\Scripts\\trae-cli.exe",
+      "promptMode": "file",
+      "argsTemplate": [
+        "run",
+        "--file",
+        "{promptFile}"
+      ],
+      "probeArgs": [
+        "--version"
+      ],
+      "env": {
+        "TRAE_CONFIG_FILE": "D:\\app\\AgentHub\\tools\\trae_config.yaml"
+      },
+      "defaultPermission": "plan",
+      "timeoutMs": 600000,
+      "outputFormat": "text",
+      "workdirFlag": "--working-dir",
+      "modelFlag": "--model",
+      "capabilities": [
+        "code",
+        "shell"
+      ],
+      "permissionArgs": {
+        "readonly": [],
+        "plan": [],
+        "execute": [
+          "--must-patch"
+        ],
+        "full": [
+          "--must-patch"
+        ]
+      },
+      "authHint": "需要 LLM provider 的 API Key。⚠️ 实测：trae-agent 按 provider 名推导环境变量名，config 里 provider 是 doubao，所以**只读 DOUBAO_API_KEY** —— 设 ARK_API_KEY 不认，且报出来的是一段 Python 异常（堆栈里看不出是 key 的问题），极易误判成装坏了。建议就设 DOUBAO_API_KEY，豆包成员也认它。想换模型改 tools/trae_config.yaml 的 model_providers（支持任意 OpenAI 兼容端点）。密钥不落盘（取值优先级 CLI > ENV > config）。",
+      "notes": "✅ 2026-09-29 装好并跑通 L1（trae-cli, version 0.1.0）。官方只有 GitHub 源码（PyPI 上 trae-agent/trae-cli 全 404），已 clone 到 tools/trae-agent。【必须 Python 3.12，不能用 3.13】trae-agent 的 requires-python 是 >=3.12，且依赖 tree-sitter-languages==1.10.2 —— 该包只有 cp312 及以下的 wheel，3.13 上 pip 直接报 'No matching distribution found'。本机托管 Python 是 3.13.14，所以用 uv 单独建了 tools/trae-venv312（CPython 3.12.14）。【安装踩坑：它还漏了自带依赖】pyproject 把 docker/pexpect/unidiff 放在 optional 的 evaluation 组，但 agent/docker_manager.py 在**顶层** import docker 和 pexpect，且 base_agent.py 顶层 import docker_manager —— 结果只装核心依赖时 CLI 一启动就 ModuleNotFoundError。必须补装 docker pexpect unidiff，否则 trae-cli 连 --help 都打不开（这是 trae-agent 自己的打包疏漏，不是配置问题）。装法：uv pip install --python tools/trae-venv312/Scripts/python.exe docker pexpect unidiff。【prompt 走 --file，不能走命令行】CLI 的 task 是位置参数，但多行 prompt 经 cmd.exe 会就地截断（退出码仍 0）—— 故 promptMode 用 'file'，由 generic adapter 落成临时文件后传 {promptFile}，这也是本适配器新增的第三种 promptMode。【注意 -p 被占用】-p 是 --provider 的短选项，不是 prompt，别混用。子命令：run / interactive / show-config / tools。"
+    },
+    {
+      "id": "doubao",
+      "name": "豆包",
+      "adapter": "doubao",
+      "billing": "tokens",
+      "enabled": true,
+      "model": "doubao-seed-evolving",
+      "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+      "maxTokens": 4096,
+      "defaultPermission": "readonly",
+      "timeoutMs": 120000,
+      "capabilities": [
+        "doc"
+      ],
+      "writeCapable": false,
+      "authHint": "需要火山方舟 API Key。✅ 推荐只设一个环境变量 DOUBAO_API_KEY —— 豆包与 Trae 两个成员共用它（trae_config.yaml 的 provider 是 doubao，只认这个名字）。ARK_API_KEY 也兼容。到 https://console.volcengine.com/ark 创建；⚠️ 还要在「开通管理」里单独开通模型，且开通后数分钟内有同步延迟（实测同一分钟内会时好时坏，重试即可）。",
+      "notes": "⚠️ 无官方 CLI。2026-09-29 实测：npm 包 @volcengine/arkclaw 的 package.json 里 bin 字段为空、description 是 \"swagger client for @volcengine/arkclaw\" —— 它是 SDK 库不是命令行工具，装完敲不出命令。因此自写 REST 适配器 src/adapters/doubao.js 直连火山方舟。【端点】POST https://ark.cn-beijing.volces.com/api/v3/chat/completions，鉴权 Authorization: Bearer $ARK_API_KEY，响应是标准 OpenAI 结构（choices[0].message.content + usage.prompt_tokens/completion_tokens）。【model 是 Model ID，必须先在控制台开通】可用 ID 随时间变，例如 doubao-seed-1-6-251015 / doubao-seed-2-0-lite-260215 / doubao-seed-2-1-pro-260628，以「开通管理」页实际开通的为准。【probe 会真发一次请求】带 max_tokens:1，这是唯一能同时验证 key 有效 + 模型已开通 + 端点可达的办法（只 ping 端点挡不住「key 对但模型没开通」）。【刻意不估美元成本】豆包按人民币计价，塞进 cost.usd 会误导，只回报 token 数。【thinking 字段默认不下发】它是方舟私有字段，老的 doubao-pro 系模型不认会报 400；需要时在 members.json 里加 \"thinking\": \"disabled\"。【2026-09-29 实测：Model ID 必须自己查，别照抄文档】从方舟文档抄的 doubao-seed-1-6-251015 平台状态已是 Retiring（待退役）。用 GET https://ark.cn-beijing.volces.com/api/v3/models 拉全量清单（实测 135 个，每个带 status：字段缺失=在售、Retiring=待退役、Shutdown=已下线）。【404 分两种，已分开翻译】服务端说 has not activated the model = Model ID 正确但账号没开通（去控制台「开通管理」点开通）；说 does not exist = ID 名字不对。当前这个 model 是方舟认得、但本账号尚未开通的 —— 开通后即可直接使用。"
+    },
+    {
+      "id": "dsh",
+      "name": "DSH",
+      "adapter": "generic",
+      "billing": "tokens",
+      "enabled": true,
+      "command": "C:\\Users\\deno\\.workbuddy\\binaries\\node\\versions\\22.22.2-3\\node.exe",
+      "promptMode": "stdin",
+      "argsTemplate": [
+        "D:\\app\\AgentHub\\tools\\dsh-cli\\dsh-run.mjs"
+      ],
+      "probeArgs": [
+        "D:\\app\\AgentHub\\tools\\dsh-cli\\dsh-run.mjs",
+        "--version"
+      ],
+      "defaultPermission": "plan",
+      "timeoutMs": 600000,
+      "outputFormat": "text",
+      "capabilities": [
+        "code",
+        "shell",
+        "doc",
+        "review"
+      ],
+      "permissionArgs": {
+        "readonly": [],
+        "plan": [],
+        "execute": [],
+        "full": []
+      },
+      "notes": "DeepSeek Harness。✅ 2026-09-29 确认了可编程入口：`dsh --profile headless \"<任务>\"` —— 官方包描述就是 'the dsh one-shot bundle: a direct core Agent/Session runner over dsh-base'，答一个任务、打印最终回复、退出。实测 `--profile headless \"只回复两个字：收到\"` 输出 `收到`、退出码 0。【不是 `dsh` 在 PATH 里】它靠 npx 缓存 + ~/.dsh/profiles 的 symlink，PATH 里没有 shim；所以经 tools/dsh-cli/dsh-run.mjs 包装，由 members.json 里的绝对路径 node 拉起。入口是 ~/.dsh/profiles/node_modules/@deepseek-ai/dsh/lib/bin.js。【★ 为什么非要包一层】headless 只吃**位置参数**，没有 --file 也没有 stdin 模式；而 execMember() 一律走 shell（还前置 chcp），多行 prompt 经 cmd.exe 会被就地截断且**退出码仍是 0**（trae 当初就是栽在这，见 generic.js 文件头）。包装层从 stdin 收完整 prompt，再作为**一个 argv 元素** spawn 给 dsh（不经 shell）—— 实测三行清单逐行复述无误。【探活走 --version 透传】包装层的非空参数分支直接透传给 dsh，不读 stdin、不产生模型调用；否则界面每按一次「测试」就会真跑一个空任务（花钱 + 得到一句没收到任务）。实测探活输出 0.1.0-rc.6。【★ probeArgs 是**完整参数列表**，不是追加在 argsTemplate 之后】GenericAdapter.probe() 直接拿 spec.probeArgs 去拼命令行（execMember(spec.command, spec.probeArgs)），**不经过 buildArgs/argsTemplate**。所以 command 是 node.exe 时，probeArgs 必须自己带上包装层路径 —— 只写 [\"--version\"] 的话命令行就成了 `node.exe --version`，探活会一本正经地报出 **node 的版本 v22.22.2**（一个看着正常、实则完全错的答案）。配上包装层路径后才是 `node.exe dsh-run.mjs --version`。【工具集】headless 带 tool-bash / tool-pwsh / tool-fs / tool-fs-search / skill / subagent，是全能型；配置里提到 exit_plan_mode 说明它有计划模式。【权限档位无法用参数表达】`--profile headless --help` 只有 -h，四个档位只能传空参数（配置里如实现状）。这正是 docs/05 第二十节那个场景：界面会如实标出「DSH 没有「只读」档对应的参数」，引擎也会保守地把它当「可能写」来采集文件改动。【无成本数据】headless 只打印最终回复，没有 JSON 模式，拿不到 token/费用 —— 报告里会如实记成未知。"
+    }
+  ]
+}

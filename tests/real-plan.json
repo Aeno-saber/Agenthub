@@ -1,0 +1,32 @@
+{
+  "goal": "给 AgentHub 引擎的两个核心模块补单元测试",
+  "subtasks": [
+    {
+      "id": "s1",
+      "title": "plan.js 单元测试",
+      "memberId": "claude",
+      "role": "测试",
+      "permission": "execute",
+      "prompt": "阅读 src/engine/plan.js，为其中的 validatePlan、findCycle、layers 三个导出函数写一份单元测试，保存到 tests/plan.test.mjs。使用 node:test 和 node:assert。要覆盖这些分支：正常计划、子任务缺 id、依赖不存在的 id、依赖成环、多层依赖的正确分层、同层可并行。写完后运行 node --test tests/plan.test.mjs 并确保全部通过。最后用一句话说明测试结果。",
+      "dependsOn": []
+    },
+    {
+      "id": "s2",
+      "title": "trace.js 单元测试",
+      "memberId": "claude",
+      "role": "测试",
+      "permission": "execute",
+      "prompt": "阅读 src/engine/trace.js，为 Trace 类写一份单元测试，保存到 tests/trace.test.mjs。使用 node:test 和 node:assert。要覆盖：add 的序号累加、summary 里的成功/失败计数与成本累加、toJSON 的结构、toMarkdown 能正常生成且包含关键小节。写完后运行 node --test tests/trace.test.mjs 并确保全部通过。最后用一句话说明测试结果。",
+      "dependsOn": []
+    },
+    {
+      "id": "s3",
+      "title": "测试说明",
+      "memberId": "claude",
+      "role": "文档书写",
+      "permission": "readonly",
+      "prompt": "基于上游两份单元测试的产出，写一段测试说明（200 字以内）：覆盖了哪些模块、每个模块重点测了什么、怎么运行这些测试。直接输出 Markdown 文本作为回答，不要写文件。",
+      "dependsOn": ["s1", "s2"]
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+```json
+{
+  "goal": "读 src/engine/quality.js 和 tests/quality.test.mjs，找出当前「产出有效性判定」的缺口：哪些「假成功」「环境错误」「推诿文案」现在还识别不出来。给出具体缺口清单。",
+  "subtasks": [
+    {
+      "id": "s1",
+      "title": "真实样本取证：现状判定命中矩阵",
+      "memberId": "cursor",
+      "role": "调研",
+      "prompt": "任务：为「产出有效性判定缺口」分析收集真实证据，不要靠推测。\n\n步骤：\n1. 精读 src/engine/quality.js（109 行）与 tests/quality.test.mjs（93 行），把当前判定规则的结构记下来：REFUSAL_PATTERNS、ENV_ERROR_PATTERNS、REFUSAL_MAX_CHARS=800、SHORT_TEXT_CHARS=400、`status !== 'ok'` 直接返回 ok、空产出判 empty、刻意不按长度判。\n2. 通读以下**真实运行产物**（不要自己造样本）：.agenthub/runs/mcp-1790668720650.json、.agenthub/runs/mcp-1790668805804.json、.agenthub/runs/run-1790658473692.json、.agenthub/runs/run-1790658530325.json、.agenthub/runs/run-1790658772010.json、.agenthub/real-run/task-20260929T095955.json。用 node 脚本把每个任务条目的 text 抽出来（可用 `node -e \"const d=require('./.agenthub/runs/xxx.json');console.log(JSON.stringify(d,null,2))\"` 先看结构再取字段）。\n3. **实测**而不是肉眼看：写一个临时脚本（放 .agenthub/gap-scan.mjs，用 `import { judgeOutput } from '../src/engine/quality.js'`），对每一个抽出的 text 打印：来源文件 / 任务 id / title / status / text.length / text 前 200 字 / judgeOutput 返回的 level+codes。跑出完整表格。\n4. 对每条产出，人工标注你的判断：`真废（该判 suspect 却判 ok = 漏报）` / `真合格（判 ok 正确）` / `已正确识别`。\n\n产出：把上面所有内容写成 .agenthub/gap-evidence.md，包含一张表格 + 一节「我实测发现的漏报样本原文摘录」。禁止编造样本；文件里读不到的字段就写「无」。",
+      "dependsOn": []
+    },
+    {
+      "id": "s2",
+      "title": "缺口清单 v1：假成功 / 环境错误 / 推诿文案",
+      "memberId": "claude",
+      "role": "文档书写",
+      "prompt": "任务：基于 s1 的取证结果（.agenthub/gap-evidence.md）与源码，写出「产出有效性判定缺口清单 v1」。\n\n必读：src/engine/quality.js、tests/quality.test.mjs、.agenthub/gap-evidence.md。\n\n产出文件：docs/06-产出有效性缺口.md。按三个大类组织，每类下列出**具体缺口条目**，每条必须包含 4 个字段：\n1. 缺口名称（一句话）\n2. 真实触发样本：原文摘录（来自 s1 的证据或测试文件里的样本，标注来源）\n3. 为什么现在识别不出来：定位到具体代码位置，例如「REFUSAL_PATTERNS 第 N 条只匹配『还没有具体内容』，不覆盖『收到，但…』式确认后推诿」，或「ENV_ERROR_PATTERNS 只在 length<=400 时采信，长环境报错被放过」，或「status!=='ok' 直接 return ok，掩盖了 failed 但 text 是空/推诿的情况」。\n4. 建议的最小改动：给出具体正则或阈值（可直接粘贴的 JS），并写明误报风险。\n\n三大类至少各覆盖这些方向（有则写，无则说明已覆盖并给出验证依据）：\n- 假成功：status=ok 但产出是问候语/确认语（『收到，我这就开始』）、只有计划没有结果、只有标题没有正文、把任务复述一遍当产出、输出被截断到只剩开场白、非空但是错误内容（如答非所问）。\n- 环境错误：模型/CLI 的限流与配额（rate limit / 429 / quota exceeded / insufficient credits）、网络与超时文案（ETIMEDOUT / ECONNRESET / 连接被重置）、沙箱与路径问题（EACCES / 找不到工作目录）、被 CLI 自己包装的失败（如『Error:』『Traceback (most recent call last)』开头）、非零退出码被吞成 ok。\n- 推诿文案：中文其它变体（『无法完成』『我无法访问』『请提供更多上下文』『作为 AI 我』『如果您需要我可以』）、英文其它变体（I cannot proceed / I'm unable to / as an AI / feel free to ask）、要求用户先授权或先确认的模板。\n\n写作要求：文字为主、结论先行，不要贴大段源码；总长控制在 400 行以内。每条缺口都要能被独立验证，不要写『可能』这种无法证伪的条目。",
+      "dependsOn": ["s1"]
+    },
+    {
+      "id": "s3",
+      "title": "候选规则实证：误报与漏报量化",
+      "memberId": "trae",
+      "role": "测试",
+      "prompt": "任务：把 s2 要写的候选规则先跑一遍数据，给出量化结论，供评审用。\n\n步骤：\n1. 读 src/engine/quality.js 和 tests/quality.test.mjs，明确该模块的核心约束是「宁漏勿误」：一个会喊狼来了的标记比没有标记更糟；合法答案可以极短（实测有 1 字符的正确答案 '5'）；长文档里正常引用『not logged in』『请补充』不算违规。\n2. 自拟一批**候选规则**（你自己写的正则/启发式，覆盖假成功、环境错误、推诿文案三类，每类 3-6 条），写成独立模块 .agenthub/gap-candidates.mjs 导出 `check(text)`。\n3. 建一个测试集 .agenthub/gap-eval.mjs，正样本来自 .agenthub/runs/*.json 与 .agenthub/real-run/task-20260929T095955.json 里真实的废产出，负样本至少包含：'alpha bravo charlie'、'bravo'、'5'（1 字符）、空串、以及 tests/quality.test.mjs 里那两个长文档防误报样本（长文含 'not logged in'、长文含『请补充』）。\n4. 用 `node .agenthub/gap-eval.mjs` 跑出矩阵并打印：每条候选规则的 命中正样本数 / 命中负样本数（误报数）。\n5. 特别验证两件事：a) 任何候选规则是否会误伤 '5' 这类极短合法答案；b) 长度阈值（400 / 800）在真实样本分布上取多少最合适 —— 打印所有真实样本的长度分布。\n\n产出：.agenthub/gap-eval-result.md，写清：每条候选规则的命中/误报数字、被否掉的高误报规则及原因、推荐的阈值、以及你**没能覆盖**的样本类型（诚实列出）。结论必须由实际运行输出支撑，不要凭感觉写。",
+      "dependsOn": ["s1"]
+    },
+    {
+      "id": "s4",
+      "title": "缺口清单评审：保留 / 否决 / 改写",
+      "memberId": "qoder",
+      "role": "评审",
+      "prompt": "任务：对 docs/06-产出有效性缺口.md（s2 产出）做逐条评审，输入还包括 .agenthub/gap-evidence.md（s1）和 .agenthub/gap-eval-result.md（s3）。\n\n逐条检查每个缺口，回答并给出结论三选一：保留 / 否决 / 改写。判据：\n1. 是否真缺口 —— 对照 src/engine/quality.js 现有规则与 tests/quality.test.mjs 现有断言逐条核对，已覆盖的写「已覆盖」并给出对应的正则/用例行，不要留下假缺口。\n2. 是否违反「宁漏勿误」—— 建议规则若会在长文档、正常技术讨论、或极短合法答案（如 '5'）上误报，判否决或要求加长度/上下文守卫；s3 的误报数字是硬证据，误报不为 0 的规则必须给出收敛方案。\n3. 是否可执行 —— 每条建议必须是可直接落地的正则/阈值/条件判断；写『加强语义理解』这种就判否决。\n4. 覆盖度补漏 —— 指出 s2 漏掉的方向（例如 status 与 text 不自洽、产出被截断、多成员产出雷同/复制粘贴、note 文案不足以定位问题等），补充为新的缺口条目。\n5. 优先级 —— 每条标 P0（真实踩过、必修）/ P1（常见）/ P2（长尾）。\n\n产出：docs/06-产出有效性缺口.review.md，格式为一张评审表：缺口名 / 结论 / 理由（引用代码或数字）/ 若保留则给出定稿版建议规则。最后附一节「评审新增缺口」。禁止只写评语不给结论。",
+      "dependsOn": ["s2", "s3"]
+    },
+    {
+      "id": "s5",
+      "title": "缺口清单定稿",
+      "memberId": "claude",
+      "role": "文档书写",
+      "prompt": "任务：把 s2 的初稿与 s4 的评审意见合并成最终交付物。\n\n输入：docs/06-产出有效性缺口.md、docs/06-产出有效性缺口.review.md、.agenthub/gap-eval-result.md。\n\n产出：覆盖写回 docs/06-产出有效性缺口.md（保留原文件，先另存 docs/06-产出有效性缺口.v1.md），结构为：\n1. 一句话结论：当前判定的覆盖边界是什么（能识别什么、识别不了什么）。\n2. 缺口清单表：序号 / 类别（假成功·环境错误·推诿文案）/ 缺口 / 真实样本出处 / 现状为何漏判（定位到规则名或阈值）/ 建议规则（可直接粘贴的代码）/ 误报风险 / 优先级 P0-P2。已评审否决的条目单独列在「已评估但不建议实现」小节，写明否决原因。\n3. 附：验证方式 —— 说明每条规则应补什么测试用例，并给出可运行的 `node --test tests/*.test.mjs` 回归提醒。\n\n要求：只保留能落地的条目；每条缺口都能被独立验证；不引入评审未通过的新规则。完成后运行 `npm test` 确认现有测试仍然全绿，把结果写进文件末尾。",
+      "dependsOn": ["s4"]
+    }
+  ]
+}
+```
